@@ -1,6 +1,6 @@
 #include <LiquidCrystal.h>
 #include <EEPROM.h>
-#define scroll_start_delay -3
+#define scroll_start_delay 3
 #define EEPROM_read_bytes 16
 #define EEPROM_read_lines 32
 #define morse_speed 250 // ms
@@ -23,9 +23,9 @@ unsigned long hash,hash_old;
 int scroll_menu_pos,scroll_title_pos;
   //0,1,2,3,4,5,6,7,8,9,del,enter;
 bool up_scr,scroll_title,scroll_menu,b[12],serial_available,scroll_title_itr,scroll_menu_itr,menu_locked,serial_screen,game_finished;
-char input[17],k[17],hash_hex[9],
+char input[17],k[17],
      splash[] = "Powered byArduino",
-     hex_charset[16]={'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+     hex_charset[16]={'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
 
 const char levels[][2][16] = {
   {
@@ -65,7 +65,7 @@ byte level_update_map[2][2];
 byte level_speeds[] = {3,3,1,2};
 byte game_after_screens[] = {13,14,16,15};
 
-byte sprites[][8] {
+byte game1_sprites[][8] {
   {
     B11111,
     B01000,
@@ -132,6 +132,74 @@ byte sprites[][8] {
   }
 };
 
+byte cryptic_text[][8] = {
+  {
+    0,0,
+    B11000,
+    B00110,
+    B00001,
+    B00110,
+    B11000,
+    0
+  },{
+    0,0,
+    B10001,
+    B10001,
+    B01010,
+    B01010,
+    B00100,
+    0
+  },{
+    0,0,
+    B10001,
+    B10001,
+    B10101,
+    B10001,
+    B11111,
+    0
+  },{
+    0,0,
+    B11111,
+    B00001,
+    B00101,
+    B00001,
+    B00001,
+    0
+  },{
+    0,0,
+    B11111,
+    B00001,
+    B00001,
+    B00001,
+    B11111,
+    0
+  },{
+    0,0,
+    B11111,
+    B10000,
+    B10100,
+    B10000,
+    B10000,
+    0
+  },{
+    0,0,
+    B11111,
+    B10001,
+    B10101,
+    B10001,
+    B11111,
+    0
+  },{
+    0,0,
+    B11111,
+    B00001,
+    B00001,
+    B00001,
+    B00001,
+    0
+  }
+};
+
 unsigned long appeared;
 /*  0: Password Unlock
  *  1: Main Menu
@@ -166,12 +234,12 @@ char scr_t[] = "Main Menu"                // 9
                "Escape the Room"          // 109
                "Enter Number"             // 121
                "Please Wait..."           // 135
-               "Press enter to  show code"// 160
+               "Hashed code:    ........ "// 160
                "EEPROM Editor"            // 173
                "Room Light Un-  locked"   // 195
                "You Lost"                 // 203
                "You Won!"                 // 211
-               "You may unlock  the door";// 235
+               "Congratulations!........";// 235
 byte scr_t_size[][2] = {
   {23,14},  //  0
   {0,9},    //  1
@@ -311,7 +379,7 @@ void update_menu() {
   if (menu_length>14) {
     scroll_menu = true;
     e = menu_start+14;
-    scroll_menu_pos = scroll_start_delay;
+    scroll_menu_pos = -scroll_start_delay;
   } else
     e = menu_start+menu_length;
   for (byte i=menu_start;i<e;i++)
@@ -357,6 +425,14 @@ void update_screen() {
     if (serial_screen_list[i]==screen)
       serial_screen = true;
   
+  switch(screen) {
+    case 15:
+      for (byte i=0;i<8;i++)
+        lcd.createChar(i, cryptic_text[i]);
+      lcd.begin(16,2);
+      break;
+  }
+  
   if (scr_type[screen][0]!=3) {
     int n;
     byte mx = mx_title[scr_type[screen][0]];
@@ -397,6 +473,9 @@ void update_screen() {
       lcd.blink();
       break;
     case 3:
+      for (byte i=0;i<7;i++)
+        lcd.createChar(i, game1_sprites[i]);
+      lcd.begin(16,2);
       after_scr = scr_type[screen][1];
       for (byte i=0;i<2;i++)
         for (byte j=0;j<16;j++) {
@@ -505,7 +584,7 @@ void game1_player_move(byte x,byte y) {
 bool is_unlocked() {
   return (scr_m[scr_type[screen][1]+1]>>pos)%2;
 }
-
+/*
 void morse(char s,byte led) {
   //Serial.println("Morse");
   byte index;
@@ -528,7 +607,7 @@ void morse(char s,byte led) {
     digitalWrite(led,1);
     delay(morse_speed);
   }
-}
+}*/
 
 void setup() {
   pinMode(rled,OUTPUT);
@@ -537,10 +616,11 @@ void setup() {
   digitalWrite(rled,0);
   digitalWrite(gled,0);
   digitalWrite(bled,1);
-  
-  for (byte i=0;i<7;i++)
-    lcd.createChar(i, sprites[i]);
   lcd.begin(16,2);
+  
+  for (int i=0;i<8;i++)
+    scr_t[227+i]=i;
+  
   for (int i=0;i<17;i++) {
     if (i==10)
       lcd.setCursor(0,1);
@@ -579,14 +659,14 @@ void setup() {
   TIMSK2|= (1 << OCIE2A);
   sei();
 
-  byte room_light_byte = EEPROM.read(0);
+  /*byte room_light_byte = EEPROM.read(0);
   if (room_light_byte) {
     bitClear(scr_m[1],1);
     scr_t[74]= '0'+room_light_byte;
     EEPROM.write(0,room_light_byte-1);
   } else {
     bitSet(scr_m[1],1);
-  }
+  }*/
   
   /***/
   /*
@@ -879,25 +959,24 @@ void loop() {
       Serial.println(hash);
       Serial.print("Hexadecimal: ");
       for (byte i=0;i<8;i++) 
-        hash_hex[i] = hex_charset[(hash>>28-i*4)%16];
+        scr_t[151+i] = hex_charset[(hash>>28-i*4)%16];
       
-      Serial.println(hash_hex);
       set_screen(7);
       break;
     case 7:
       if (b[10]&&millis()-appeared>2000)
         set_screen(1);
-      if (b[11]&&millis()-appeared>100) {
+      /*if (b[11]&&millis()-appeared>100) {
         delay(500);
         for (byte i=0;i<8;i++) {
           morse(hash_hex[i],11);
           delay(morse_speed*2);
         }
-      }
+      }*/
       break;
     case 8:
       if (serial_available) {
-        switch(serial) {
+        switch(serial) {/*
           case 'r':
             Serial.println();
             Serial.println();
@@ -930,7 +1009,7 @@ void loop() {
               Serial.println(EEPROM_bytes);
             }
             Serial.print("\n\n\n");
-            break;
+            break;*/
           case 'q':
             set_screen(2);
             break;
