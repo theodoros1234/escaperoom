@@ -1,0 +1,3 @@
+Time : 0h 0m 7s
+Hints: 2
+Score: 85470

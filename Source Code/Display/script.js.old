@@ -1,0 +1,51 @@
+var timer=0,hours,minutes,seconds,milliseconds,start,stop,hints,halt;
+
+//document.getElementById('timer').innerHTML = "Worked";.,
+console.log("Script Loaded");
+var http = new XMLHttpRequest();
+
+
+
+http.onreadystatechange = function () {
+  if (http.readyState==4 && http.status==200) {
+    console.log(http.responseText);
+    var data = http.responseText.split(',');
+    start= parseInt(data[0]);
+    if (start==0)
+      halt=false;
+    stop = parseInt(data[1]);
+    timer = Math.floor(Date.now()/100-start);
+    document.getElementById('hints').innerHTML = "Hints: " + data[2];
+  }
+};
+
+setInterval(function(){
+  if (timer&&!halt) {
+    timer+=10;
+    if (stop) {
+      halt=true;
+      timer=stop-start;
+    }
+    //milliseconds=timer%10;
+    seconds=Math.floor(timer/10)%60;
+    minutes=Math.floor(timer/600)%60;
+    hours=Math.floor(timer/36000);
+    if (seconds<10)
+      seconds = "0" + seconds;
+    if (minutes<10)
+      minutes = "0" + minutes;
+    
+    document.getElementById('clock').innerHTML = hours+':'+minutes+':'+seconds;//+'.'+milliseconds;
+  }
+},1000);
+
+http.open("GET","server.php");
+http.send();
+
+setInterval(function(){
+  http.open("GET","server.php");
+  http.send();
+},5000);
+
+//http.open("GET","");
+//http.send();

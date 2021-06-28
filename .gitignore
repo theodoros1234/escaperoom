@@ -1,1 +1,4 @@
 *.hex
+Source Code/Arduino/escape_room_v1
+*/.directory
+*/.vscode

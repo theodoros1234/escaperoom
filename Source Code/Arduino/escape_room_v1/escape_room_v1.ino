@@ -1,6 +1,6 @@
 #include <LiquidCrystal.h>
 #include <EEPROM.h>
-#define scroll_start_delay 3
+#define scroll_start_delay -3
 #define EEPROM_read_bytes 16
 #define EEPROM_read_lines 32
 #define morse_speed 250 // ms
@@ -20,7 +20,7 @@ LiquidCrystal lcd(A0,A1,A2,A3,A4,A5);
 byte screen,serial,t[12],pos,sz,menu_start,menu_length,menu_end,input_size,next_scr,prev_scr,after_scr,game_tick,game_speed,
      serial_screen_list[]={2,8};
 unsigned long hash,hash_old;
-int scroll_menu_pos,scroll_title_pos;
+int scroll_menu_pos,scroll_title_pos,devmenu_hold_since;
   //0,1,2,3,4,5,6,7,8,9,del,enter;
 bool up_scr,scroll_title,scroll_menu,b[12],serial_available,scroll_title_itr,scroll_menu_itr,menu_locked,serial_screen,game_finished;
 char input[17],k[17],
@@ -221,7 +221,9 @@ unsigned long appeared;
  * 17: Game Level 3
  * 18: Escape the Room password 3
  * 19: Game Level 4
- * 20: The End
+ * 20: Game launcher
+ * 21: Developer Menu
+ * 22: Reset Game Progress
  */
 
 char scr_t[] = "Main Menu"                // 9
@@ -239,7 +241,9 @@ char scr_t[] = "Main Menu"                // 9
                "Room Light Un-  locked"   // 195
                "You Lost"                 // 203
                "You Won!"                 // 211
-               "Congratulations!........";// 235
+               "Congratulations!........" // 235
+               "Dev Menu"                 // 243
+               "Reset Game";              // 253
 byte scr_t_size[][2] = {
   {23,14},  //  0
   {0,9},    //  1
@@ -260,7 +264,10 @@ byte scr_t_size[][2] = {
   {23,14},  // 16
   {0,0},    // 17
   {23,14},  // 18
-  {0,0}     // 19
+  {0,0},    // 19
+  {0,0},    // 20
+  {235,8},  // 21
+  {243,5}   // 22
 };
 // Screen Types:
 // 0: Message
@@ -288,14 +295,21 @@ const byte scr_type[][2] = {
   {3,2}, // 17
   {2,4}, // 18
   {3,3}, // 19
-  {0,0}  // 20
+  {0,0}, // 20
+  {1,8}, // 21
+  {0,0}  // 22
 };
 const byte mx_title[] = {32,12,16}; // Maximum characters for the title for each screen type
 byte scr_m[] = {
-  2,B11,
-  9,14,
-  94,15,
-  5,10
+  2,B11, // (Main Menu)
+  9,14,  // Hash generator
+  94,15, // Escape the Room
+  5,20,  // [Next Screen Pointers]
+  
+  2,B11, // (Dev Menu)
+  37,14, // Developer Mode
+  243,10,// Reset Game
+  2,22   // [Next Screen Pointers]
 };
 
 void fatal_error() {
@@ -371,7 +385,9 @@ void update_menu() {
     lcd.print('>');
   else
     lcd.print('X');
-  lcd.print(' ');
+  for (byte i=0;i<15;i++)
+    lcd.print(' ');
+  lcd.setCursor(2,1);
   menu_start = scr_m[scr_type[screen][1]+pos*2+2];
   menu_length = scr_m[scr_type[screen][1]+pos*2+3];
   menu_end = menu_start+menu_length;
@@ -379,7 +395,7 @@ void update_menu() {
   if (menu_length>14) {
     scroll_menu = true;
     e = menu_start+14;
-    scroll_menu_pos = -scroll_start_delay;
+    scroll_menu_pos = scroll_start_delay;
   } else
     e = menu_start+menu_length;
   for (byte i=menu_start;i<e;i++)
@@ -418,7 +434,7 @@ void update_screen() {
 
   digitalWrite(rled,1);
   digitalWrite(gled,1);
-  digitalWrite(bled,1);
+  digitalWrite(bled,0);
   
   serial_screen = false;
   for (byte i=0;i<sizeof(serial_screen_list);i++)
@@ -495,15 +511,19 @@ void update_screen() {
       break;
     case 3:
       digitalWrite(rled,0);
+      digitalWrite(bled,1);
       break;
     case 4:
       digitalWrite(gled,0);
+      digitalWrite(bled,1);
       break;
     case 11:
       digitalWrite(rled,0);
+      digitalWrite(bled,1);
       break;
     case 12:
       digitalWrite(gled,0);
+      digitalWrite(bled,1);
       break;
     case 14:
       for (byte i=0;i<8;i++)
@@ -556,6 +576,7 @@ void game1_player_move(byte x,byte y) {
       break;
     case 3:
       set_screen(12);
+      EEPROM.write(0,after_scr);
       break;
     case 4:
       for (byte y=0;y<2;y++)
@@ -864,7 +885,15 @@ void loop() {
           set_screen(4);
         else
           set_screen(3);
-      } break;
+      }
+      // Hold Back+0+Enter for 3s to access deveoper menu
+      if (b[0]||b[10]||b[9])
+        devmenu_hold_since=millis();
+      if (!(t[0]&&t[10]&&t[9]))
+        devmenu_hold_since=0;
+      else if (devmenu_hold_since!=0 && millis()-devmenu_hold_since>=3000)
+        set_screen(21);
+      break;
     
     case 2:
       if (serial_available) {
@@ -883,10 +912,12 @@ void loop() {
           case 'w':
             set_screen(15);
             break;
+          case 'i':
+            EEPROM.write(0,10);
+            Serial.println("Reset save state.");
         }
       }
       lcd.setCursor(0,1);
-      Serial.println();
       for (byte i=0;i<12;i++) {
         if (t[i]>0) {
           if (i<10) {
@@ -906,6 +937,7 @@ void loop() {
             Serial.print('.');
         }
       }
+      Serial.print("\r");
       lcd.print("  ");
       lcd.print(t[0]);
       lcd.print(' ');
@@ -958,9 +990,12 @@ void loop() {
       Serial.print("Decimal: ");
       Serial.println(hash);
       Serial.print("Hexadecimal: ");
-      for (byte i=0;i<8;i++) 
-        scr_t[151+i] = hex_charset[(hash>>28-i*4)%16];
-      
+      for (byte i=0;i<8;i++) {
+        char a = hex_charset[(hash>>28-i*4)%16];
+        scr_t[151+i] = a;
+        Serial.print(a);
+      }
+      Serial.println();
       set_screen(7);
       break;
     case 7:
@@ -976,7 +1011,7 @@ void loop() {
       break;
     case 8:
       if (serial_available) {
-        switch(serial) {/*
+        switch(serial) {
           case 'r':
             Serial.println();
             Serial.println();
@@ -1009,7 +1044,7 @@ void loop() {
               Serial.println(EEPROM_bytes);
             }
             Serial.print("\n\n\n");
-            break;*/
+            break;
           case 'q':
             set_screen(2);
             break;
@@ -1203,6 +1238,12 @@ void loop() {
         else
           set_screen(3);
       } break;
+    case 20:
+      set_screen(EEPROM.read(0));
+    case 22:
+      EEPROM.write(0,10);
+      if (millis()-appeared>=2000)
+        set_screen(0);
   }
 
   switch (scr_type[screen][0]) {
@@ -1326,19 +1367,19 @@ void loop() {
                             new_x=x;
                             new_y=y-1;
                             work=false;
-                          }break;
+                          } break;
                         case 1:
                           if (ghost_bottom) {
                             new_x=x;
                             new_y=y+1;
                             work=false;
-                          }break;
+                          } break;
                         case 2:
                           if (ghost_left) {
                             new_x=x-1;
                             new_y=y;
                             work=false;
-                          }break;
+                          } break;
                         case 3:
                           if (ghost_right) {
                             new_x=x+1;
