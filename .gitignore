@@ -1,4 +1,7 @@
 *.hex
-Source Code/Arduino/escape_room_v1
-*/.directory
-*/.vscode
+*.directory
+*.vscode
+*.kate-swp
+Source Code/Display/*.txt
+Source Code/Display/*.conf
+.directory

@@ -51,7 +51,7 @@ function update_time() {
 
 // Poll the server for information on an interval
 setInterval(function() {
-  receiver.open('GET',"server.php");
+  receiver.open('GET',"getdata.php");
   receiver.send();
 },update_interval);
 
