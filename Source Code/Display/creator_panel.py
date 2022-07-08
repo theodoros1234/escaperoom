@@ -1,7 +1,7 @@
 #!/bin/python3 
 import os, sys, time, math
 from threading import Thread, Lock
-from PySide2.QtWidgets import QApplication, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QTextEdit, QPushButton, QMessageBox
+from PySide2.QtWidgets import QApplication, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QTextEdit, QPushButton, QMessageBox, QDialog, QListWidget
 from PySide2.QtGui import Qt
 from http.client import HTTPConnection
 
@@ -126,7 +126,35 @@ class mainWindow(QWidget):
     self.screenBlankButton = QPushButton(self)
     self.buttonLayout.addWidget(self.screenBlankButton)
     self.screenBlankButton.setText("Blank Screen")
+    # Slideshow button
+    self.slideshowButton = QPushButton(self)
+    self.buttonLayout.addWidget(self.slideshowButton)
+    self.slideshowButton.setText("Slideshow")
     self.buttonLayout.addStretch()
+    
+    # Slideshow dialog
+    self.slideshowDialog = QDialog(self)
+    self.slideshowDialog.setWindowTitle("Select slideshow")
+    self.slideshowDialog.resize(250,100)
+    self.slideshowDialog.mainLayout = QVBoxLayout(self.slideshowDialog)
+    # List
+    self.slideshowDialog.list = QListWidget(self.slideshowDialog)
+    self.slideshowDialog.mainLayout.addWidget(self.slideshowDialog.list)
+    self.slideshowDialog.list.addItem("Item 8 Hint 1")
+    self.slideshowDialog.list.addItem("Item 8 Hint 2")
+    self.slideshowDialog.list.setCurrentRow(0)
+    # Buttons
+    self.slideshowDialog.buttonLayout = QHBoxLayout(self.slideshowDialog)
+    self.slideshowDialog.mainLayout.addLayout(self.slideshowDialog.buttonLayout)
+    self.slideshowDialog.buttonLayout.addStretch()
+    # OK
+    self.slideshowDialog.OKButton = QPushButton(self)
+    self.slideshowDialog.buttonLayout.addWidget(self.slideshowDialog.OKButton)
+    self.slideshowDialog.OKButton.setText("OK")
+    # Cancel
+    self.slideshowDialog.cancelButton = QPushButton(self)
+    self.slideshowDialog.buttonLayout.addWidget(self.slideshowDialog.cancelButton)
+    self.slideshowDialog.cancelButton.setText("Cancel")
     
     # Set up slots and signals
     self.startButton.clicked.connect(self.startSignal)
@@ -136,6 +164,10 @@ class mainWindow(QWidget):
     self.victoryLightsButton.clicked.connect(self.victoryLightsSignal)
     self.resetLightsButton.clicked.connect(self.resetLightsSignal)
     self.screenBlankButton.clicked.connect(self.screenBlankSignal)
+    self.slideshowButton.clicked.connect(self.slideshowDialog.exec_)
+    self.slideshowDialog.OKButton.clicked.connect(self.slideshowDialog.accept)
+    self.slideshowDialog.cancelButton.clicked.connect(self.slideshowDialog.reject)
+    self.slideshowDialog.accepted.connect(self.sendSlideshow)
   
   # Updates UI with given time and hint data
   def updateUi(self, start, pause, hints, update_all=False):
@@ -222,6 +254,12 @@ class mainWindow(QWidget):
   def screenBlankSignal(self):
     self.historyAdd("Blanked <b>screen</b>.")
     self.ledstrip_send_pointer("blank")
+  
+  def sendSlideshow(self):
+    command = ["8.1", "8.2"]
+    pos = self.slideshowDialog.list.currentRow()
+    self.historyAdd(f"Sent <b>slideshow</b> {command[pos]}.")
+    self.ledstrip_send_pointer(f"show-{command[pos]}")
   
   # Halts time watch object when app is closing
   def closeEvent(self,e):

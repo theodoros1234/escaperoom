@@ -110,6 +110,8 @@ def load_config():
   serial_set            = False
   baudrate_set          = False
   samplerate_set        = False
+  slideshow8_1_set      = False
+  slideshow8_2_set      = False
   
   # Read config file
   with open(CONFIG_PATH,'r') as config_f:
@@ -145,10 +147,14 @@ def load_config():
         baudrate_set = True
       elif key=="samplerate":
         samplerate_set = True
+      elif key=="slideshow8.1-path":
+        slideshow8_1_set = True
+      elif key=="slideshow8.2-path":
+        slideshow8_2_set = True
       else:
         print(f"Unused value '{line.strip()}' found in config file")
   # Abort if not all required values were set
-  if not (base_color_set and hint_color_bright_set and hint_color_dark_set and hint_transition_set and finish_color_set and transition_set and hostname_set and port_set and serial_set and baudrate_set and samplerate_set):
+  if not (base_color_set and hint_color_bright_set and hint_color_dark_set and hint_transition_set and finish_color_set and transition_set and hostname_set and port_set and serial_set and baudrate_set and samplerate_set and slideshow8_1_set and slideshow8_2_set):
     return False
   
   # Convert transition time to an floating point number, or abort if it's invalid or out of range
@@ -198,6 +204,13 @@ class RequestHandler(BaseHTTPRequestHandler):
     elif self.path=="/blank":
       print(color('$S#000000').escapify("Blanking screen"))
       blanker.show()
+    # Hints that show a slideshow on screen
+    elif self.path=="/show-8.1":
+      print("Showing slideshow for hint 8.1")
+      subprocess.Popen(["/usr/bin/soffice", "--show", config["slideshow8.1-path"]])
+    elif self.path=="/show-8.2":
+      print("Showing slideshow for hint 8.2")
+      subprocess.Popen(["/usr/bin/soffice", "--show", config["slideshow8.2-path"]])
     # Invalid request
     else:
       invalid = True
@@ -218,11 +231,33 @@ class ledstrip():
     self.lock = Lock()
     self.hintmode_lock = Lock()
     self.hintmode = False
-    # Create serial connection
-    self.port = serial.Serial(config["serial"],config["baudrate"])
-    # Set base color
-    self.color = config["base-color"]
-    self.port.write(self.color.hexbytes)
+    # Track if connection was made to LED strip
+    self.init_success = False
+    try:
+      # Create serial connection
+      self.port = serial.Serial()
+      self.port.port = config["serial"]
+      self.port.baudrate = config["baudrate"]
+      self.port.open()
+      # Set base color
+      self.color = config["base-color"]
+      self.port.write(self.color.hexbytes)
+      self.init_success = True
+    except FileNotFoundError:
+      print("Could not connect to LED strip: Device was disconnected")
+    except PermissionError:
+      print("Could not connect to LED strip: Access denied")
+    except OSError as e:
+      print("Could not connect to LED strip:", end=' ')
+      if e.errno==2:
+        print("Device not connected")
+      elif e.errno==13:
+        print("Access denied")
+      else:
+        print(e)
+    except BaseException as e:
+      self.port.close()
+      raise e
     # Close port, so that if the device gets randomly disconnected and reconnected, it won't cause issues.
     self.port.close()
   
@@ -292,8 +327,14 @@ class ledstrip():
     except PermissionError:
       print("Could not change LED strip color: Access denied")
       success = False
-    except OSError:
-      print("Could not change LED strip color: Connection lost while transitioning")
+    except OSError as e:
+      print("Could not change LED strip color:", end=' ')
+      if e.errno==2:
+        print("Device was disconnected")
+      elif e.errno==13:
+        print("Access denied")
+      else:
+        print(e)
       success = False
     except BaseException as e:
       self.port.close()
@@ -344,11 +385,11 @@ class ledstrip():
 class screenBlanker(QWidget):
   def __init__(self):
     super().__init__()
-    self.setWindowState(self.windowState() | Qt.WindowFullScreen)
     self.active = False
   # Track if screen is blanked or not
   def showEvent(self, e):
     self.active = True
+    self.setWindowState(self.windowState() | Qt.WindowFullScreen)
   def hideEvent(self, e):
     # If the screen was blanked, ask the desktop manager to lock the session.
     if self.active:
@@ -392,6 +433,8 @@ def main():
     print("serial= (Path to serial port that connects to an Arduino controlling an LED strip)")
     print("baudrate= (Integer that indicates what baud rate to use for serial communication with the Arduino)")
     print("samplerate= (Integer that indicates how many color samples per second are sent to the LED strip during transitions)")
+    print("slideshow8.1-path = (Path to slideshow for hint 8.1)")
+    print("slideshow8.2-path = (Path to slideshow for hint 8.2)")
     sys.exit(1)
   
   # Create screen blanking object
@@ -399,6 +442,9 @@ def main():
   # Connect to Arduino LED strip
   print("Connecting to LED strip")
   strip = ledstrip()
+  # Exit if connection was unsuccessful
+  if not strip.init_success:
+    sys.exit(3)
   # Start HTTP Server
   print("Starting server")
   server = HTTPServer((config['hostname'],config['port']),RequestHandler)
