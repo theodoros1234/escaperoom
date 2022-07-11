@@ -211,6 +211,10 @@ class RequestHandler(BaseHTTPRequestHandler):
     elif self.path=="/show-8.2":
       print("Showing slideshow for hint 8.2")
       subprocess.Popen(["/usr/bin/soffice", "--show", config["slideshow8.2-path"]])
+    # Space keystroke request
+    elif self.path=="/space":
+      print("Pressing space key")
+      subprocess.Popen(["xdotool", "key", "space"])
     # Invalid request
     else:
       invalid = True

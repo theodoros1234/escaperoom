@@ -147,6 +147,10 @@ class mainWindow(QWidget):
     self.slideshowDialog.buttonLayout = QHBoxLayout(self.slideshowDialog)
     self.slideshowDialog.mainLayout.addLayout(self.slideshowDialog.buttonLayout)
     self.slideshowDialog.buttonLayout.addStretch()
+    # Press Space
+    self.slideshowDialog.spaceButton = QPushButton(self.slideshowDialog)
+    self.slideshowDialog.buttonLayout.addWidget(self.slideshowDialog.spaceButton)
+    self.slideshowDialog.spaceButton.setText("Press Space")
     # OK
     self.slideshowDialog.OKButton = QPushButton(self)
     self.slideshowDialog.buttonLayout.addWidget(self.slideshowDialog.OKButton)
@@ -168,6 +172,7 @@ class mainWindow(QWidget):
     self.slideshowDialog.OKButton.clicked.connect(self.slideshowDialog.accept)
     self.slideshowDialog.cancelButton.clicked.connect(self.slideshowDialog.reject)
     self.slideshowDialog.accepted.connect(self.sendSlideshow)
+    self.slideshowDialog.spaceButton.clicked.connect(self.slideshowSpacebarSignal)
   
   # Updates UI with given time and hint data
   def updateUi(self, start, pause, hints, update_all=False):
@@ -260,6 +265,9 @@ class mainWindow(QWidget):
     pos = self.slideshowDialog.list.currentRow()
     self.historyAdd(f"Sent <b>slideshow</b> {command[pos]}.")
     self.ledstrip_send_pointer(f"show-{command[pos]}")
+  
+  def slideshowSpacebarSignal(self):
+    self.ledstrip_send_pointer("space")
   
   # Halts time watch object when app is closing
   def closeEvent(self,e):
